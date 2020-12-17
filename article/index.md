@@ -129,3 +129,45 @@ It runs and responds as expected. 🎉👏
 
 Ok, nothing extraordinary yet. We managed to start a vanilla demo template then extended it with some other demo code. Time for something more interesting.
 
+
+# Deploying to AWS Lambda
+
+We have managed to reproduce the official Falco tutorial so far. As mentioned earlier, we are actively using AWS Lambda, so now I will show how to deploy a Falco application to Lambda!
+
+For this, I will be using [AWS Serverless Application Model](https://docs.aws.amazon.com/serverless-application-model/), with its .Net tooling. 
+I have also used some AWS Lambda function templates as a basis for the configuration files I will present below. All of these can be installed using the dotnet command.
+
+~~~sh
+dotnet tool install -g Amazon.Lambda.Tools
+dotnet new -i "Amazon.Lambda.Templates::*"
+~~~
+
+The template I used is the `serverless.AspNetCoreWebAPI` one. I interested you can check it out with `dotnet new serverless.AspNetCoreWebAPI --language F# --name HelloServerlessAsp`.
+
+## AWS infrastructure prerequisites
+
+Deployment to Lambda using AWS SAM needs a bucket for the storage of the packaged Lambda functions. Assuming your AWS CLI is installed and your credentials are configured, it is a straightforward command to create it. I created the bucket `lambda.kodfodrasz.net` using my default credentials in the region closest to me.
+
+~~~sh
+aws s3api create-bucket --bucket lambda.kodfodrasz.net --acl private --create-bucket-configuration LocationConstraint=eu-central-1
+~~~
+
+## Configuring a Lambda compatible .Net version
+
+As of writing this article .Net 5.0 has been recently released. However, it is not supported out-of-the-box officially by Amazon, though workarounds exist. 
+I have .Net 5.0 installed on my machine, which would result in the app targeting this version, unless configured, which would ultimately result in runtime failures at Lambda invocation time.
+
+To prevent the problems, we must adjust the version settings to target the latest supported runtime version in AWS Lambda: .Net Core 3.1.
+
+First, let's retarget the `HelloFalco.fsproj` project, to contain `<TargetFramework>netcoreapp3.1</TargetFramework>`.
+
+Second, a `global.json` file needs to be added and set up to prevent [automatic version *roll forward*](https://docs.microsoft.com/en-us/dotnet/core/tools/global-json?tabs=netcore3x#rollforward). Add the `global.json` file to the root of the projects (the solution directory).
+
+~~~json
+{
+  "sdk": {
+    "version": "3.1.100",
+    "rollForward": "latestMinor"
+  }
+}
+~~~
