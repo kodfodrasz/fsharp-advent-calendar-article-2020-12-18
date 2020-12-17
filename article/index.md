@@ -171,3 +171,36 @@ Second, a `global.json` file needs to be added and set up to prevent [automatic 
   }
 }
 ~~~
+
+## Adapt the F# project for use with AWS SAM tools
+
+The Amazon Serverless templates have some special fields set up in their project file. We should add these to ensure Amazon tools handle the project properly.
+
+Also, we will need an additional NuGet package, an adapter between the Lambda runtime and ASP.Net. You could add it using the command `dotnet add package Amazon.Lambda.AspNetCoreServer`, but I simply tuned the `HelloFalco.fsproj` to include these changes mentioned.
+
+However, this is not enough. We need to add the AWS Lambda facette to the Falco project file `HelloFalco.fsproj` as well:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <!-- The next three properties were copied from the AWS Serverless template to ensure tooling compatibility (along with the next comment). -->
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <AWSProjectType>Lambda</AWSProjectType>
+
+    <!-- This property makes the build directory similar to a publish directory and helps the AWS .NET Lambda Mock Test Tool find project dependencies. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Falco" Version="3.0.*" />
+    <!-- Contains the adapter between AWS Lambda Runtime and ASP.Net Core -->
+    <PackageReference Include="Amazon.Lambda.AspNetCoreServer" Version="5.2.0" />
+  </ItemGroup>
+</Project>
+```
