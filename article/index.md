@@ -63,3 +63,69 @@ Let's start it! If using Visual Studio choose the HelloWordApp from the run conf
 Now you should see something like this:
 
 ![It runs!](part1-it_runs.jpg)
+
+## Adding a route
+
+Before we move on to the next phase, let's add another – parameterized – route from the Falco examples. This will be used to validate the hosting setup in the next phase. The complete program is still very compact, looks as follows:
+
+~~~fsharp
+module HelloFalco.Program
+
+open Falco
+open Falco.Routing
+open Falco.HostBuilder
+open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Hosting
+open Microsoft.Extensions.DependencyInjection
+
+// ------------
+// Register services
+// ------------
+let configureServices (services : IServiceCollection) =
+    services.AddFalco() |> ignore
+
+// ------------
+// Activate middleware
+// ------------
+let configureApp (endpoints : HttpEndpoint list) (ctx : WebHostBuilderContext) (app : IApplicationBuilder) =
+    let devMode = StringUtils.strEquals ctx.HostingEnvironment.EnvironmentName "Development"
+    app.UseWhen(devMode, fun app ->
+            app.UseDeveloperExceptionPage())
+       .UseWhen(not(devMode), fun app ->
+            app.UseFalcoExceptionHandler(Response.withStatusCode 500 >> Response.ofPlainText "Server error"))
+       .UseFalco(endpoints) |> ignore
+
+// -----------
+// Configure Web host
+// -----------
+let configureWebHost (endpoints : HttpEndpoint list) (webHost : IWebHostBuilder) =
+    webHost
+        .ConfigureServices(configureServices)
+        .Configure(configureApp endpoints)
+
+let helloHandler: HttpHandler =
+  let getMessage (route: RouteCollectionReader) =
+    route.GetString "name" "stranger"
+    |> sprintf "Hello %s!"
+
+  Request.mapRoute getMessage Response.ofPlainText
+
+[<EntryPoint>]
+let main args =
+  webHost args {
+    configure configureWebHost
+
+    endpoints [ get "/" (Response.ofPlainText "Hello world")
+                get "/hello/{name?}" helloHandler ]
+  }
+  0
+~~~
+
+Its operation can be quickly verified with cURL.
+
+![Image of locally running service responding to queries as expected](part1_additional_routes.jpg)
+
+It runs and responds as expected. 🎉👏
+
+Ok, nothing extraordinary yet. We managed to start a vanilla demo template then extended it with some other demo code. Time for something more interesting.
+

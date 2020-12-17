@@ -37,11 +37,19 @@ let configureWebHost (endpoints: HttpEndpoint list) (webHost: IWebHostBuilder) =
     .ConfigureServices(configureServices)
     .Configure(configureApp endpoints)
 
+let helloHandler: HttpHandler =
+  let getMessage (route: RouteCollectionReader) =
+    route.GetString "name" "stranger"
+    |> sprintf "Hello %s!"
+
+  Request.mapRoute getMessage Response.ofPlainText
+
 [<EntryPoint>]
 let main args =
   webHost args {
     configure configureWebHost
-    endpoints [ get "/" (Response.ofPlainText "Hello world") ]
-  }
 
+    endpoints [ get "/" (Response.ofPlainText "Hello world")
+                get "/hello/{name?}" helloHandler ]
+  }
   0
