@@ -316,3 +316,113 @@ let main args =
 One thing to note is the common `UseStartup<Startup>()` pattern is not used here. I initially tried that pattern, but it didn't fit seamlessly with the initialization model of Falco. The way I finally settled with is pretty straightforward and convenient, and totally native from both Falco, and vanilla ASP.Net Core. 
 
 We can try this code locally, and it will still work just as before.
+
+## Setting up the deployment configuration
+
+The final step before deployment is to define the deployment configuration for the SAM tools. We need to add two config files to the project directory.
+
+First, add `aws-lambda-tools-defaults.json`. This file defines some defaults for the `dotnet lambda` command family. The deployment bucket created earlier is needed here. I specified my bucket, `lambda.kodfodrasz.net`. Also, an *S3 prefix* is needed, where the data related to this app will be stored. I simply used `HelloFalco`.
+
+Also, we need to define a *stack name*, which is used to group the resources related to the Lambda function, for example, the API gateway settings. I chose the name `HelloFalco`.
+If you don't want to use your default profile and region, you can also do so. Otherwise, leave the fields as empty strings.
+
+Overall my config `aws-lambda-tools-defaults.json` looks like this:
+
+~~~json
+{
+  "Information": [
+    "This file provides default values for the deployment wizard inside Visual Studio and the AWS Lambda commands added to the .NET Core CLI.",
+    "To learn more about the Lambda commands with the .NET Core CLI execute the following command at the command line in the project root directory.",
+    "dotnet lambda help",
+    "All the command line options for the Lambda command can be specified in this file."
+  ],
+  "profile": "",
+  "region": "",
+  "configuration": "Release",
+  "framework": "netcoreapp3.1",
+  "s3-prefix": "HelloFalco",
+  "template": "serverless.template",
+  "template-parameters": "",
+  "stack-name": "HelloFalco",
+  "s3-bucket": "lambda.kodfodrasz.net"
+}
+~~~
+
+This file references a *template*, `serverless.template`. That will be the second config file we will need to create.
+I copied this file over from the `serverless.AspNetCoreWebAPI` project template, and have tweaked it a bit.
+
+The most important field is the `Handler` item, the entry point where the AWS Lambda Runtime invokes our code. I have the following structure:
+
+`<assembly name>::<handler class fully qualified name>::<handler method>`. In our case:
+ - The assembly name is `HelloFalco`
+ - The handler class FQN is `HelloFalco.Program+LambdaEntryPoint`. This means that it is an inner class (`LambdaEntryPoint`) of the (static) class `Program` in the `HelloFalco` namespace.  
+   If you need to know more about F# and plain CLR interop, I suggest the great reads [F# for Fun and profit about Classes](https://fsharpforfunandprofit.com/posts/classes/#tip-defining-classes-for-use-by-other-net-code) by [Scott Wlaschin](https://twitter.com/ScottWlaschin) and  [Calling F# Code in a C# Project](https://connelhooley.uk/blog/2017/04/30/f-sharp-to-c-sharp) by [Connel Hooley](https://twitter.com/connel_dev).
+
+The other important part is `Events`, which sets up the API Gateway events to be forwarded to the app. This setup basically forwards everything, and all routing is up to Falco/ASP.Net.  
+This is the main difference from our current Lambda setup (with regards to routing), as we are using the API Gateway for route part matching, and are simply using the matched parts from the Lambda Event in the raw Lambda setup we currently have.
+
+The `Policies` point is also important, it contains the IAM Policies applied to the web application. In this example I replaced the original template's `AWSLambdaFullAccess` with an almost completely constrained `AWSLambdaBasicExecutionRole`, which should still suffice for this example.
+
+~~~json
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "An AWS Serverless Application that uses the ASP.NET Core framework running in Amazon Lambda.",
+  "Parameters": {},
+  "Resources": {
+    "AspNetCoreFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "HelloFalco::HelloFalco.Program+LambdaEntryPoint::FunctionHandlerAsync",
+        "Runtime": "dotnetcore3.1",
+        "CodeUri": "",
+        "MemorySize": 256,
+        "Timeout": 10,
+        "Role": null,
+        "Policies": [
+          "AWSLambdaBasicExecutionRole"
+        ],
+        "Environment": {
+          "Variables": {}
+        },
+        "Events": {
+          "ProxyResource": {
+            "Type": "Api",
+            "Properties": {
+              "Path": "/{proxy+}",
+              "Method": "ANY"
+            }
+          },
+          "RootResource": {
+            "Type": "Api",
+            "Properties": {
+              "Path": "/",
+              "Method": "ANY"
+            }
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ApiURL": {
+      "Description": "API endpoint URL for Prod environment",
+      "Value": {
+        "Fn::Sub": "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+      }
+    }
+  }
+}
+~~~
+
+We can try to deploy out setup now.
+
+~~~sh
+cd HelloFalco
+dotnet lambda deploy-serverless
+~~~
+
+If we cURL onto the path displayed at the end of the successful deployment, we can see that Falco does indeed work in AWS Lambda.
+
+![Falco responding successfully from AWS Lambda](part2-hello_serverless.jpg)
+
