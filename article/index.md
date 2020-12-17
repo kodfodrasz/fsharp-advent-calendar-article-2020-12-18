@@ -426,3 +426,12 @@ If we cURL onto the path displayed at the end of the successful deployment, we c
 
 ![Falco responding successfully from AWS Lambda](part2-hello_serverless.jpg)
 
+# Conclusion
+
+In the example above we have seen how to adapt a Falco based ASP.Net Core web application for hosting in AWS Lambda. AWS Lambda is not fit for every usecase, but if suits your usecase, it can be a cheapest way to host a low traffic web application, with minimal maintenance burden, and fine grained security.
+
+I have evaluated the maintainability effects of supporting both local/self-hosted and AWS Lambda hosted execution models at the same time, and I came to the conclusion that it has a minimal overhead. This has the potential to improve the testability of our services in the partially-integrated setups in the CI pipeline, with minimal programmer effort. Also this could help to more easily track down some types of problems by executing the app in local debugger, with confidence in the highly similar nature of the request/response processing pipeline.
+
+Given Falco's simple, readable API and the ease to use even if we will not change to it in every F# based Lambda service we have, I will definitely use it for projects where possible.
+
+If you are interested in trying out the setup outlined without reproducing it step-by-step, then check out the [repository containing the code and the article at GitHub](https://github.com/kodfodrasz/fsharp-advent-calendar-article-2020-12-18/).
